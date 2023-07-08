@@ -5,11 +5,13 @@
 #include <string>
 #include <fstream>
 #include <fcntl.h>
+#include "json.hpp"
 
 
 //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
 //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
 std::string API_KEY = "";
+using json = nlohmann::json;
 
 const std::string ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
@@ -47,7 +49,7 @@ int	craeteApiFile() {
 
 	path += "/chatgpt/.apifile";
 	std::string 	key;
-	std::cout << "Please go to https://platform.openai.com/account/api-keys and click Create new secret key\n";
+	//std::cout << "Please go to https://platform.openai.com/account/api-keys and click Create new secret key\n";
 	std::cout << "then past your openAI api key here:\n>>";
 	std::getline(std::cin, key);
 	API_KEY = key;
@@ -122,7 +124,7 @@ void	print_message(std::string content_message) {
 
 int send_message(const std::string &message, int testing)
 {
-	std::string data = "{ \"model\": \"" + MODEL_NAME + "\", \"user\": \"" + "user" + "\", \"messages\": [{\"role\": \"user\", \"content\": \"" + message + "\"}] }";
+	std::string data = "{ \"model\": \"" + MODEL_NAME + "\", \"user\": \"" + "user" + "\", \"messages\": [{\"role\": \"user\", \"content\": \"" + "`" + message + "`\"}] }";
 	if (!API_KEY.empty() && API_KEY[0] == 't')
 		decryptekey(API_KEY);
 	std::string command = "curl -s -X POST -H \"Content-Type: application/json\" -H \"Authorization: Bearer " + API_KEY + "\" -d '" + data + "' " + ENDPOINT;
@@ -137,20 +139,20 @@ int send_message(const std::string &message, int testing)
 	size_t response_len = fread(response, 1, sizeof(response) - 1, fp);
 	response[response_len] = '\0';
 	pclose(fp);
-	std::string formatted_response(response);
-	long pos_start = formatted_response.find("\"content\":\"");
-	if (pos_start >= 0)
-		pos_start += 11;
-	else {
-		if (testing != 2)
-			print_message(formatted_response);
-		std::cerr << "chatgpt v1.0: if you need to reinstall/update the program go to https://github.com/bahimzabir/terminal_chatgbt_installer\n";
+
+	json dat = json::parse(response);
+	std::string msg;
+	try {
+		msg = dat["choices"][0]["message"]["content"];
+	} catch (std::exception str) {
+		msg = dat["error"]["message"];
+		print_message(msg);
+		if (testing != 1)
+			std::cout << "To update the api key please RUN: chatgbt -k" << std::endl;
 		return 0;
 	}
-	size_t pos_end = formatted_response.find("\"}", pos_start);
-	std::string content_message = formatted_response.substr(pos_start, pos_end - pos_start);
 	if(!testing)
-		print_message(content_message);
+		print_message(msg);
 	return 1;
 	
 }
@@ -161,14 +163,30 @@ int main(int argc, char **argv)
 
 	if (argc != 2)
 	{
-		std::cout << "chatgpt v1.0: Usage: chatgbt <question>" << std::endl;
+		std::cout << "chatgpt v1.2: Usage: chatgbt <question>\nif you trying to update the api key use: chatgbt -k" << std::endl;
 		return 1;
 	}
-
-		getApiKey();
-		user_input = argv[1];
-		user_input.erase(user_input.find_last_not_of("\n") + 1);
-		send_message(argv[1], 0);
+	std::string arg = argv[1];
+	if (arg[0] == '-') {
+		if (arg == "-k") {
+			while (!craeteApiFile());
+			std::cout << "your Key is updated, please run the gpt again.\n";
+			std::cout << "chatgpt v1.2: if you need to reinstall/update the program go to https://github.com/bahimzabir/terminal_chatgbt_installer\n";
+			exit(1);
+		}
+		else if(arg == "--help") {
+			std::cout << "chatgpt v1.2: Usage: chatgbt <question>\nif you trying to update the api key use: chatgbt -k" << std::endl;
+			return 0;
+		}
+		else {
+			std::cout << "chatgpt v1.2: Usage: chatgbt <question>\nif you trying to update the api key use: chatgbt -k" << std::endl;
+			return 1;
+		}
+	}
+	getApiKey();
+	user_input = argv[1];
+	user_input.erase(user_input.find_last_not_of("\n") + 1);
+	send_message(argv[1], 0);
 
 	return 0;
 }
